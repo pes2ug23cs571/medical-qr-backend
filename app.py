@@ -1,35 +1,40 @@
 import os
 from flask import Flask, jsonify
-import mysql.connector
+import psycopg2
 
 app = Flask(__name__)
 
-db = mysql.connector.connect(
-    host=os.environ.get("MYSQLHOST"),
-    user=os.environ.get("MYSQLUSER"),
-    password=os.environ.get("MYSQLPASSWORD"),
-    database=os.environ.get("MYSQLDATABASE"),
-    port=int(os.environ.get("MYSQLPORT"))
-)
+# Connect using Render PostgreSQL URL
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+conn = psycopg2.connect(DATABASE_URL)
 
 @app.route("/qr/<qr_id>")
 def get_critical_info(qr_id):
-    cursor = db.cursor(dictionary=True)
-    query = """
-    SELECT name, blood_group, allergies,
-           chronic_conditions, critical_medicines,
-           emergency_contact, last_updated
-    FROM critical_info
-    WHERE qr_id = %s
-    """
-    cursor.execute(query, (qr_id,))
-    result = cursor.fetchone()
-    cursor.close()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT name, blood_group, allergies,
+               chronic_conditions, critical_medicines,
+               emergency_contact, last_updated
+        FROM critical_info
+        WHERE qr_id = %s
+    """, (qr_id,))
 
-    if not result:
+    row = cur.fetchone()
+    cur.close()
+
+    if not row:
         return {"error": "No record found"}, 404
 
-    return jsonify(result)
+    return jsonify({
+        "name": row[0],
+        "blood_group": row[1],
+        "allergies": row[2],
+        "chronic_conditions": row[3],
+        "critical_medicines": row[4],
+        "emergency_contact": row[5],
+        "last_updated": row[6]
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
